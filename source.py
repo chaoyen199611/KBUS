@@ -6,7 +6,7 @@ route_name_list = ['紅68A','紅68A(延駛大莊里)','紅68B','紅68B(部分繞
                    '橘12(白天延駛澄清湖)','橘11A','橘11B','橘11A區間車','224']
 
 # 時刻表資料
-df_sch = pd.read_csv('TDX_SCHEDULE.csv',index_col=0)
+df_sch = pd.read_csv('tdx.csv',index_col=0)
 df_sch = df_sch.loc[df_sch['RouteName'].isin(route_name_list)]
 df_sch = df_sch[['RouteID','RouteName','Direction','TripID','StopSequence','StopName']]
 df_sch = df_sch.groupby(['RouteID','RouteName','Direction'])\
@@ -16,7 +16,7 @@ df_sch_b = df_sch[['RouteID','RouteName','Direction','MaxStopSequence']].rename(
 df_sch = pd.concat([df_sch_a,df_sch_b])
 
 # 公車實際行駛資料
-df = pd.read_csv('Schedule.csv')
+df = pd.read_csv('Schedule_1.csv')
 df = df.loc[df['RouteName'].isin(route_name_list)]
 # 只顯示符合第一站和第n站末站資料
 df = pd.merge(df,df_sch,left_on=['RouteID','RouteName','Direction','StopSequence'],right_on=['RouteID','RouteName','Direction','StopSequence'],how='right')
@@ -67,3 +67,5 @@ df_total = df.groupby(['RouteID','RouteName','Schedule_Time','Direction','Week']
 df_total.loc[:, 'AvgTravelTime'] = df_total.apply(lambda x: float("{:.1f}".format(x['AvgTravelTime'])), axis=1)
 df_total = df_total.pivot(columns='Schedule_Time', values='AvgTravelTime',index=['RouteID','RouteName','Direction','Week'])
 df_total = df_total.reset_index()
+
+print(df_total)
