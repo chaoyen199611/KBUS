@@ -1,43 +1,48 @@
-import docplex.mp.model as cpx
 import pandas as pd
-from datetime import datetime,timedelta
-import sys
-from docplex.cp.model import *
 import matplotlib.pyplot as plt
 import numpy as np
 
-
-df = pd.read_csv('route60.csv',index_col=False)
-df.loc[:,"name"] = df['start']+'_'+df['direction'].astype(str)
-df.loc[:,'start'] = df.apply(lambda x: (datetime.strptime(x['start'], '%H:%M')-datetime.strptime('06:00', '%H:%M')).total_seconds()/60 if pd.notnull(x['start']) else pd.NA, axis=1)
-df.loc[:,'end'] = df.apply(lambda x: (datetime.strptime(x['end'], '%H:%M')-datetime.strptime('06:00', '%H:%M')).total_seconds()/60 if pd.notnull(x['end']) else pd.NA, axis=1)
-df_dict = df.to_dict()
-print(df)
-
-
 from docplex.cp.model import CpoModel
+from datetime import datetime,timedelta
+from itertools import combinations
 
-# tasks = [
-#     (5, 73),
-#     (75, 140)
-# ]
 
-# Sample tasks with start and end times and directions
-import pandas as pd
-from docplex.cp.model import CpoModel
+tasks = pd.read_csv('route_test.csv',index_col=False)
+tasks.loc[:,"name"] = tasks['start']+'_'+tasks['direction'].astype(str)
+tasks.loc[:,'start'] = tasks.apply(lambda x: (datetime.strptime(x['start'], '%H:%M')-datetime.strptime('06:00', '%H:%M')).total_seconds()/60 if pd.notnull(x['start']) else pd.NA, axis=1)
+tasks.loc[:,'end'] = tasks.apply(lambda x: (datetime.strptime(x['end'], '%H:%M')-datetime.strptime('06:00', '%H:%M')).total_seconds()/60 if pd.notnull(x['end']) else pd.NA, axis=1)
+
+print(tasks)
+
 
 # tasks = {
-#     "start": [20.0, 5.0, 45.0, 20.0, 60.0],
-#     "end": [85.0, 73.0, 110.0, 88.0, 125.0],
-#     "direction": [0, 1, 0, 1, 0],
-#     "name": ["06:20_0", "06:05_1", "06:45_0", "06:20_1", "07:00_0"]
+#     "start": [20.0, 5.0,
+#             45.0, 20.0,
+#             60,35,
+#             75,50,
+#             90,65,
+#             105,95,
+#             135,120,
+#             150,145],
+#     "end": [85.0, 73.0,
+#             110.0, 88.0,
+#             125,103,
+#             140,118,
+#             155,133,
+#             170,163,
+#             200,188,
+#             215,213],
+#     "direction": [0, 1, 0, 1, 0,1,0,1,0,1,0,1,0,1,0,1],
+#     "name": ["06:20_0", "06:05_1", "06:45_0", "06:20_1","07:00_0",
+#             "06:35_1","07:15_0","06:50_1","07:30_0","07:05_1",
+#             "07:45_0","07:35_1","08:15_0","08:00_1","08:30_0","08:25_1"]
 # }
 
 # tasks = pd.DataFrame(tasks)
-tasks = df
-print(tasks)
+
 # Sample buses
-buses = ["bus1", "bus2", "bus3","bus4","bus5","bus6","bus7","bus8","bus9","bus10"]
+buses = ["bus1", "bus2", "bus3","bus4","bus5","bus6","bus7","bus8","bus9","bus10",
+         "bus11", "bus12", "bus13","bus14","bus15","bus16","bus17","bus18","bus19","bus20"]
 
 # Create a model
 model = CpoModel()
@@ -54,18 +59,22 @@ for index, task in tasks.iterrows():
 
 # Constraints: tasks assigned to a worker do not overlap
 for worker_name in buses:
-    for i, task1 in tasks.iterrows():
-        for j, task2 in tasks.iterrows():
-            if i != j:
-                model.add((task1["end"] <= task2["start"]) | (task1["start"] >= task2["end"]) |
-                          (assign[(i, worker_name)] + assign[(j, worker_name)] <= 1))
+    for i, j in combinations(range(len(tasks)), 2):
+        if i < j:
+            if (tasks.iloc[i]["end"] > tasks.iloc[j]["start"]) or (tasks.iloc[i]["start"] < tasks.iloc[j]["end"]):
+                model.add(((assign[(i, worker_name)] + assign[(j, worker_name)] <= 1)))
+            model.add(((assign[(i, worker_name)] + assign[(j, worker_name)] <= 1))|
+                        (assign[(i, worker_name)] + assign[(j, worker_name)] == 2) & 
+                      ((assign[(i, worker_name)] * tasks.iloc[i]["direction"] +
+                        assign[(j, worker_name)] * tasks.iloc[j]["direction"]) == 1))
+                
 
-# Constraints: consecutive tasks assigned to a worker have alternating directions
-for worker_name in buses:
-    for i in range(len(tasks) - 2):
-        model.add((assign[(i, worker_name)] * tasks.iloc[i]["direction"] +
-                   assign[(i + 1, worker_name)] * tasks.iloc[i + 1]["direction"] +
-                   assign[(i + 2, worker_name)] * tasks.iloc[i + 2]["direction"]) <= 1)
+
+# # Constraints: consecutive tasks assigned to a worker have alternating directions
+# for worker_name in buses:
+#     for i in range(len(tasks)-1):
+#         for j in range(i+1,len(tasks)):
+            
 
 # Define a set of buses who have been assigned tasks
 assigned_workers = [model.sum(assign[(index, worker_name)] for index, _ in tasks.iterrows()) >= 1 for worker_name in buses]
